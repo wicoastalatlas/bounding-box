@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>OGP Bounding Box</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<!-- Leaflet Stylesheet and JS-->
+	<link rel="stylesheet" href="./leaflet-0.7.7.css" />
+	<script src="./leaflet-0.7.7.js"></script>
+
+	<!-- Leaflet Area Select -->
+	<script src="./leaflet-areaselect.js"></script>
+
+	<!-- Leaflet Location Filter -->
+	<link rel="stylesheet" href="./leaflet-locationfilter/locationfilter.css" />
+	<script src="./leaflet-locationfilter/locationfilter.js"></script>
+
+	<!-- JQuery -->
+	<script src="./jquery-2.2.3.min.js"></script>
+
+	<style>
+		html {
+			height: 100%
+		}
+		body {
+			min-height: 100%;
+			margin: 0;
+			padding: 0;
+			font-family: Helvetica,Arial,sans-serif;
+		}
+		#map {
+			height: 50em;
+			margin: 2%;
+		}
+		.button-bar {
+			height: 3em;
+			width: 100%;
+		}
+		.fit-bounds-button {
+			background: #2c2c2c;
+			float: left;
+			width: 40%;
+			padding: 0.75em 1%;
+			margin: 0 4%;
+			border-radius: 2px;
+			line-height: 1.5em;
+			text-align: center;
+			color: white;
+		}
+		.results,
+		.predefined {
+			margin: auto 2%;
+			color: #777;
+			display: inline-block;
+		}
+		.results {
+			float: left;
+		}
+		.predefined {
+			float: right;
+		}
+		@media (max-width: 940px) {
+			.predefined {
+				float: left;
+			}
+		}
+		.result-item,
+		.predefined {
+			margin-top: 3em;
+		}
+		.result-title,
+		.predefined-title {
+			font-size: 1.75em;
+		}
+		.predefined-button {
+			background: #2c2c2c;
+			padding: 0.75em;
+			margin: 1em 0;
+			border-radius: 2px;
+			line-height: 1em;
+			text-align: center;
+			color: white;
+		}
+		.btn {
+			cursor: pointer;
+		}
+
+		.leaflet-areaselect-shade {
+			position: absolute;
+			background: rgba(0,0,0, 0.4);
+		}
+		.leaflet-areaselect-handle {
+			position: absolute;
+			background: #fff;
+			border: 1px solid #666;
+			-moz-box-shadow: 1px 1px rgba(0,0,0, 0.2);
+			-webkit-box-shadow: 1px 1px rgba(0,0,0, 0.2);
+			box-shadow: 1px 1px rgba(0,0,0, 0.2);
+			width: 14px;
+			height: 14px;
+			cursor: move;
+		}
+	</style>
+</head>
+	<body>
+		<div id="map"></div>
+		<div class="button-bar">
+			<div class="fit-bounds-button btn" onclick="map.fitBounds(pz.WI);">Wisconsin</div>
+			<div class="fit-bounds-button btn" onclick="map.fitBounds(pz.GreatLakes);">Great Lakes</div>
+		</div>
+		<div class="results">
+			<div class="result-item">
+				<div class="result-title">xMin,yMin,xMax,yMax:</div> 
+				<div id="bounding-box"></div>
+			</div>
+			<div class="result-item">
+				<div class="result-title">solr text</div>
+				<pre><code id="solr-text"></code></pre>
+			</div>
+		</div>
+		<div class="predefined">
+			<div class="predefined-title">Predefined Extents:</div>
+			<div class="predefined-button btn" onclick="updateBoundsText(pb.WI)">Wisconsin</div>
+			<div class="predefined-button btn" onclick="updateBoundsText(pb.GreatLakes)">Great Lakes</div>
+			<div class="predefined-button btn" onclick="updateBoundsText(pb.LakeSupCoast)">Lake Superior Coast</div>
+			<div class="predefined-button btn" onclick="updateBoundsText(pb.LakeMICoast)">Lake Michigan Coast</div>
+		</div>
+
+		<script>
+			// Predefined Zoom
+			var pz = {
+				WI: [[42.4580, -92.9642],[47.0831, -86.7088]],
+				GreatLakes: [[41.3936, -92.1142],[49.0276, -75.7702]]
+			};
+
+			// Predefined Bounds
+			var pb = {
+				WI: {
+					_southWest: {
+						lng: -92.9642,
+						lat:  41.3936
+					},
+					_northEast: {
+						lng: -75.7702,
+						lat:  49.0276
+					}
+				},
+				GreatLakes: {
+					_southWest: {
+						lng: -92.197266,
+						lat:  41.335576
+					},
+					_northEast: {
+						lng: -76.003418,
+						lat:  49.001844
+					}
+				},
+				LakeMICoast: {
+					_southWest: {
+						lng: -88.088379,
+						lat:  42.496403
+					},
+					_northEast: {
+						lng: -86.802979,
+						lat:  45.467836
+					}
+				},
+				LakeSupCoast: {
+					_southWest: {
+						lng: -92.290649,
+						lat:  46.555083
+					},
+					_northEast: {
+						lng: -90.387268,
+						lat:  47.085085
+					}
+				}
+			};
+
+
+			function updateBoundsText(bounds) {
+				document.getElementById("bounding-box").innerHTML = [bounds._southWest.lng, bounds._southWest.lat, bounds._northEast.lng, bounds._northEast.lat].join(", ")
+				
+				var solrText = [
+					"<field name='MinX'>" + bounds._southWest.lng + "</field>",
+					"<field name='MinY'>" + bounds._southWest.lat + "</field>",
+					"<field name='MaxX'>" + bounds._northEast.lng + "</field>",
+					"<field name='MaxY'>" + bounds._northEast.lat + "</field>",
+					"<field name='CenterX'>" + ((bounds._northEast.lng+bounds._southWest.lng)/2).toFixed(6) + "</field>",
+					"<field name='CenterY'>" + ((bounds._northEast.lat+bounds._southWest.lat)/2).toFixed(6) + "</field>",
+					"<field name='HalfWidth'>"  + ((bounds._northEast.lng-bounds._southWest.lng)/2).toFixed(6) + "</field>",
+					"<field name='HalfHeight'>" + ((bounds._northEast.lat-bounds._southWest.lat)/2).toFixed(6) + "</field>"
+				].join("\n");
+				document.getElementById("solr-text").innerHTML = solrText.replace(/</g,"&lt;").replace(/>/g,"&gt;");
+			};
+
+
+			// Initialize map
+			var map = L.map('map').setView([44.5, -89.5], 7);
+			map.fitBounds(pz.WI);
+
+			L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+				attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+			}).addTo(map);
+
+
+			// Add locationfilter to map
+			var locationFilter = new L.LocationFilter().addTo(map);
+
+			// Update bounds on box change
+			locationFilter.on("change", function(e) {
+				bounds = this.getBounds();
+				updateBoundsText(bounds);
+			});
+		</script>
+	</body>
+</html>
